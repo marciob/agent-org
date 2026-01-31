@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useSyncExternalStore, useCallback, ReactNode } from 'react';
 
 type Theme = 'light' | 'dark';
 
@@ -12,34 +12,78 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('light');
-  const [mounted, setMounted] = useState(false);
+// Storage key for theme
+const THEME_KEY = 'theme';
 
+// Custom event name for theme changes within the same tab
+const THEME_CHANGE_EVENT = 'theme-change';
+
+// Get the current theme from localStorage or system preference
+function getThemeSnapshot(): Theme {
+  const saved = localStorage.getItem(THEME_KEY) as Theme | null;
+  if (saved === 'light' || saved === 'dark') {
+    return saved;
+  }
+  if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    return 'dark';
+  }
+  return 'light';
+}
+
+// Server snapshot always returns light (default)
+function getServerSnapshot(): Theme {
+  return 'light';
+}
+
+// Subscribe to theme changes
+function subscribeToTheme(callback: () => void): () => void {
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  mediaQuery.addEventListener('change', callback);
+  window.addEventListener('storage', callback);
+  window.addEventListener(THEME_CHANGE_EVENT, callback);
+  return () => {
+    mediaQuery.removeEventListener('change', callback);
+    window.removeEventListener('storage', callback);
+    window.removeEventListener(THEME_CHANGE_EVENT, callback);
+  };
+}
+
+// Subscribe function for mounted detection
+const emptySubscribe = () => () => {};
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  // Use useSyncExternalStore for theme - properly syncs with localStorage
+  const theme = useSyncExternalStore(
+    subscribeToTheme,
+    getThemeSnapshot,
+    getServerSnapshot
+  );
+
+  // Use useSyncExternalStore to detect client-side hydration
+  const mounted = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+
+  // Apply theme class to document when it changes
   useEffect(() => {
-    setMounted(true);
-    // Check for saved preference or system preference
-    const saved = localStorage.getItem('theme') as Theme | null;
-    if (saved) {
-      setThemeState(saved);
-      document.documentElement.classList.toggle('dark', saved === 'dark');
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setThemeState('dark');
-      document.documentElement.classList.add('dark');
-    }
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
+
+  const setTheme = useCallback((newTheme: Theme) => {
+    localStorage.setItem(THEME_KEY, newTheme);
+    document.documentElement.classList.toggle('dark', newTheme === 'dark');
+    // Dispatch custom event to trigger useSyncExternalStore re-read
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
   }, []);
 
-  const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
-    localStorage.setItem('theme', newTheme);
-    document.documentElement.classList.toggle('dark', newTheme === 'dark');
-  };
+  const toggleTheme = useCallback(() => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+  }, [theme, setTheme]);
 
-  const toggleTheme = () => {
-    setTheme(theme === 'light' ? 'dark' : 'light');
-  };
-
-  // Prevent flash of wrong theme
+  // Prevent flash of wrong theme during SSR
   if (!mounted) {
     return null;
   }
