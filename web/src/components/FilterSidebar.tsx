@@ -50,9 +50,9 @@ interface RadioOptionProps {
   count?: number;
 }
 
-function RadioOption({ label, value, checked, onChange, count }: RadioOptionProps) {
+function RadioOption({ label, checked, onChange, count }: RadioOptionProps) {
   return (
-    <label className="flex items-center gap-3 cursor-pointer group">
+    <label className="flex items-center gap-3 cursor-pointer group" onClick={onChange}>
       <div
         className={`
           w-4 h-4 rounded-full border-2 flex items-center justify-center
@@ -85,7 +85,7 @@ interface CheckboxOptionProps {
 
 function CheckboxOption({ label, checked, onChange }: CheckboxOptionProps) {
   return (
-    <label className="flex items-center gap-3 cursor-pointer group">
+    <label className="flex items-center gap-3 cursor-pointer group" onClick={onChange}>
       <div
         className={`
           w-4 h-4 rounded border flex items-center justify-center

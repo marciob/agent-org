@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Bounty, BountyWithDetails, Asset, BountyStatus } from '@/lib/types';
+import { Bounty, Asset, BountyStatus } from '@/lib/types';
 import { store, initializeSampleData } from '@/lib/store';
 import { ToastType } from '@/components/Toast';
 
